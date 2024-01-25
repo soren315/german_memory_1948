@@ -1,0 +1,21 @@
+---
+title: "seeded_lda"
+author: "Abu Bakr"    
+date: "2023-12-15"
+output: html_document
+---
+
+```{r}
+nakba_lda <- nakba_regio_tidy |> 
+  select(-c(month, day, outlet, year_pub, regional, ueberregional, sonstiges, id))
+
+
+toks <- tokens(nakba_id, remove_punct = TRUE, remove_symbols = TRUE, 
+               remove_numbers = TRUE, remove_url = TRUE)
+dfmt <- dfm(toks) |> 
+    dfm_remove(stopwords("en")) |>
+    dfm_remove("*@*") |>
+    dfm_trim(max_docfreq = 0.1, docfreq_type = "prop")
+print(dfmt)
+```
+
