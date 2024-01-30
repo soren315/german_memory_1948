@@ -1,0 +1,180 @@
+---
+title: "topicmodelling"
+author: "Abu Bakr"
+date: "2024-01-02"
+output: html_document
+---
+
+```{r}
+needs(topicmodels, broom, dplyr, tidytext, tidyr, tidyverse, SnowballC, ldatuning)
+```
+
+## Zuerst wurde eine Document-Term-Matrix erstellt
+```{r DTM erstellen}
+tbl_dtm <- tbl_tidy |> 
+  filter(str_length(token) > 1) |> 
+  count(year, token) |> 
+  group_by(token) |> 
+  filter(n() < 50) |> 
+  cast_dtm(document = year, term = token, value = n)
+```
+
+## Aus dieser wurde eine `provisorische LDA mit k = 10 Themen` erstellt, die einen Überblick über den Korpus und seine Themen geben soll
+```{r eval=FALSE}
+needs(topicmodels, broom)
+
+lda_k10 <- LDA(tbl_dtm, k = 10, control = list(seed = 123))
+
+lda_k10_tidy <- tidy(lda_k10)
+#saveRDS(lda_k10_tidy, file = "/Users/abuzuzu/Desktop/R_BA/dereko_final/data/lda_k10_tidy.rds")
+```
+
+
+## Im Folgenden wurden die `Token ermittelt, die besonders ausschlaggebend für das jeweilige Topic` waren. Daraufhin wurde eine Visualisierung der LDA mit k = 10 Themen erstellt
+```{r}
+top_terms_k10 <- lda_k10_tidy |>
+  group_by(topic) |>
+  slice_max(beta, n = 5, with_ties = FALSE) |>
+  ungroup() |>
+  arrange(topic, -beta)
+
+top_terms_k10 |>
+  mutate(topic = factor(topic),
+         term = reorder_within(term, beta, topic)) |>
+  ggplot(aes(term, beta, fill = topic)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  scale_x_reordered() +
+  facet_wrap(~topic, scales = "free", ncol = 2) +
+  coord_flip()
+
+ggsave("tm_k10_israel.png", width = 7, height = 5)
+#Hier sieht man gerade, dass zb noch immer Sachen wie "aviv" da stehen und es eigentlich cool wäre, "tel_aviv" zu haben
+```
+
+
+## Aufgrund der schwierigen Interpretierbarkeit dieser Ergebnisse wird ein LDA-tuning durchgeführt. Dadurch soll die optimale Anzahl an Topics gefunden werden
+```{r}
+needs(ldatuning)
+```
+
+```{r eval=FALSE}
+determine_k <- FindTopicsNumber(
+  tbl_dtm,
+  topics = seq(from = 2, to = 30, by = 1),
+  metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  control = list(seed = 77),
+  mc.cores = 16L,
+  verbose = TRUE
+)
+
+#determine_k |> write_rds("lda_tuning.rds")
+```
+
+## Dieses `LDA-tuning` wird mit dem untenstehenden Code `visualisiert`
+```{r}
+FindTopicsNumber_plot(determine_k)
+
+ggsave(file = "determine_k_stm.png", width = 8, height = 5)
+```
+## Nachdem mit `k = 15` die optimale Anzahl an Topics ermittelt wurde, wird damit weitergearbeitet.
+
+```{r eval=FALSE}
+library(lda)
+library(topicmodels)
+lda_k15 <- LDA(tbl_dtm, k = 15, control = list(seed = 77))
+
+lda_k15_tidied <- tidy(lda_k15)
+
+write_rds(lda_k15, "lda_k15.rds")
+```
+
+
+## An dieser Stelle werden `Informationen über die Werte der einzelnen Token` je nach Topic gesammelt
+```{r}
+topic_list <- lda_k15_tidied |> 
+  group_by(topic) |> 
+  group_split() |> 
+  map_dfc(~.x |> 
+            slice_max(beta, n = 20, with_ties = FALSE) |>
+            arrange(-beta) |> 
+            select(term)) |> 
+  set_names(str_c("topic", 1:15, sep = "_"))
+
+#write_csv(topic_list, file = "topic_list.csv")
+```
+
+## Dasselbe wurde mit einer `gefilterten Liste an Top Token` ausgeführt um den "noise" zu verringen
+```{r}
+topic_list_filtered <- lda_k15_tidied |> 
+  group_by(topic) |> 
+    filter(!term %in% c("arab", "jud", "judisch", "israel", "palastinens", "staat", "arab", "palastina")) |>
+  group_split() |> 
+  map_dfc(~.x |> 
+            slice_max(beta, n = 20, with_ties = FALSE) |>
+            arrange(-beta) |> 
+            select(term)) |> 
+  set_names(str_c("topic", 1:15, sep = "_"))
+
+#write_csv(topic_list_filtered, file = "topic_list_filtered.csv")
+```
+
+## Nun wurden die `Document-topic probabilities (Gamma)` ermittelt. Dadurch soll besser verstanden werden, welches Topic welches Thema bespricht
+
+
+```{r}
+lda_k15_document <- tidy(lda_k15, matrix = "gamma")
+```
+
+## In dieser Übersicht werden die Topics je nach Jahr visualisiert. Es ist kein besonderes Muster im Zeitverlauf zu erkennen. Es wurde keine time-dependency erkannt.
+
+```{r}
+lda_k15_document |> 
+  group_by(document) |> 
+  slice_max(gamma, n = 1) |> 
+  mutate(gamma = round(gamma, 3))
+```
+_Besonders auffallend ist das in den Jahren der Intifada (2000-2002) nur Thema 12 bespielt wurde. Danach 2004-2006 vor allem Thema 4. Interessant sind besonders die letzten paar Jahre, dort gibt es aber ein sehr unterschiedliches Bild_
+
+
+### Nun wird eine `LDAvis` (Sievert und Shirley 2014) erstellt. Dadurch lassen sich die Topics interaktiv untersuchen
+
+```{r}
+#Erstellen einer Funktion für LDAvis
+needs(LDAvis)
+
+prep_lda_output <- function(dtm, lda_output){
+  doc_length <- dtm |> 
+    as.matrix() |> 
+    as_tibble() |> 
+    rowwise() |> 
+    summarize(doc_sum = c_across() |> sum()) |> 
+    pull(doc_sum)
+  phi <- posterior(lda_output)$terms |> as.matrix()
+  theta <- posterior(lda_output)$topics |> as.matrix()
+  vocab <- colnames(dtm)
+  term_sums <- dtm |> 
+    as.matrix() |> 
+    as_tibble() |> 
+    summarize(across(everything(), ~sum(.x))) |> 
+    as.matrix()
+  svd_tsne <- function(x) tsne::tsne(svd(x)$u)
+  LDAvis::createJSON(phi = phi, 
+                     theta = theta,
+                     vocab = vocab,
+                     doc.length = doc_length,
+                     term.frequency = term_sums[1,],
+                     mds.method = svd_tsne
+  )
+}
+
+json_lda <- prep_lda_output(tbl_dtm, lda_k15)
+```
+
+
+##Mit dem folgenden Code lässt sich die `#LDAvis` aufrufen und anschließend im Browser einstellen
+```{r eval=FALSE}
+serVis(json_lda, out.dir = 'vis', open.browser = TRUE)
+
+servr::daemon_stop(1)
+```
