@@ -4,10 +4,8 @@ Um diese Erinnerung zu untersuchen, wurde ein Korpus des IDS
 
 1948 war ein historisch bedeutsames Jahr für die Region zwischen dem Jordanfluss und dem Mittelmeer und darüber hinaus: Unter anderem wurde der Staat Israel gegründet und ein großer Teil der indigenen palästinensischen Bevölkerung wurde vertrieben. Es scheint, als gebe es eine Erinnerungskonkurrenz zwischen diesen beiden Erinnerungen. Es ist bisher nicht analytisch erforscht worden, mit welcher Form des Erinnerns Deutschland dieser Ereignisse gedenkt. Auf diese Frage soll diese Arbeit eine mögliche Antwort geben, indem ein Seeded Topic Model auf einen vorselektierten Korpus an Zeitungsartikeln, die sich mit den Ereignissen von 1948 im historischen Palästina zwischen 1998-2022 in deutschen Zeitungen befassen, angewendet wurde. Dabei wurde herausgefunden, dass in Deutschland kein Dialogisches Erinnern stattfindet. Die Form des Erinnerns unterscheidet sich aber je nach Zeitung. 
 
-Hier sind alle R-Skripte zu finden, die ich genutzt habe. \n
-Die Daten zu diesem Projekt wurden mit dem Code in "dereko_cleaning.Rmd" bereinigt. \n
-Das Topic Model wurde mit dem Code in "topicmodelling.Rmd" durchgeführt. \n
-Das Seeded Topic Model wurde mit dem Code in "seeded_topicmodel.Rmd" durchgeführt. \n
-Das Seeded Topic Model für die einzelnen Zeitungen wurde mit dem Code in "seeded_tm_all_newspaper.Rmd" durchgeführt. \n
-
-Dieses Projekt stellt die Prüfungsleistung zur Erreichung des B.A. in Soziologie dar.
+Hier sind alle R-Skripte zu finden, die ich genutzt habe.
+Die Daten zu diesem Projekt wurden mit dem Code in "dereko_cleaning.Rmd" bereinigt.
+Das Topic Model wurde mit dem Code in "topicmodelling.Rmd" durchgeführt.
+Das Seeded Topic Model wurde mit dem Code in "seeded_topicmodel.Rmd" durchgeführt.
+Das Seeded Topic Model für die einzelnen Zeitungen wurde mit dem Code in "seeded_tm_all_newspaper.Rmd" durchgeführt.
