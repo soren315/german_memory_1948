@@ -1,0 +1,289 @@
+---
+title: "frequencies"
+author: "Abu Bakr"
+date: "2023-12-11"
+output:
+  word_document: default
+  html_document: default
+---
+
+- Mit Daten aus _dereko_cleaning2_ arbeiten
+
+
+```{r}
+needs(scales, stringr, dplyr, ggplot2, tidyverse, quantreg, stringr, wordcloud, wordcloud2, RColorBrewer, topicmodels, broom)
+```
+
+## Hier wird die Anzahl an `Artikeln pro Jahr` veranschaulicht
+```{r Artikel pro Jahr}
+ggplot(subset(tbl_complete, year >= 1998 & year <= 2023), aes(x = year)) +
+  geom_bar(stat = "count", fill = "darkgreen") +
+  theme_linedraw() +
+  labs(title = "Anzahl der Veröffentlichungen", x = "Jahr", y = "Anzahl der Veröffentlichungen", subtitle = "pro Jahr")
+
+#ggsave("Anzahl_Veröffentlichungen_pro_Jahr.png")
+
+ggplot(tbl_regio, aes(x = year)) +
+  geom_bar(stat = "count", fill = "darkgreen") +
+  theme_linedraw() +
+  labs(title = "Anzahl Artikel pro Jahr", x = "Jahr", y = "Anzahl Artikel") + geom_vline(xintercept = 1997.5, linetype = "dashed", color = "red")
+
+#ggsave("per_year_all.png", width = 10, height = 5)
+```
+## Hier wird untersucht, `wieviele Zeitungen pro regional/überregional/Sonstige` enthalten sind
+```{r Untersuchung Regio/-nicht}
+library(ggplot2)
+library(dplyr)
+# Beispiel-Datensatz
+# Angenommen, nakba_regio ist der Name deines Dataframes mit den Kategorien regional, ueberregional, und sonstiges
+
+# Aggregiere die Anzahl der Artikel in jeder Kategorie
+category_counts <- tbl_regio %>%
+  summarise(
+    Regional = sum(regional),
+    Überregional = sum(ueberregional),
+    Sonstige = sum(sonstiges))
+```
+
+
+```{r Verteilung regio/überregio/sonstige Kuchen}
+library(tidyr)
+# Umsortieren der Daten für das Kuchendiagramm
+category_counts <- category_counts %>%
+  pivot_longer(cols = c(Regional, Überregional, Sonstige), names_to = "Category", values_to = "Count")
+
+# Erstellen des Kuchendiagramms
+#categories_newspaper <-
+ggplot(category_counts, aes(x = "", y = Count, fill = Category)) +
+  geom_bar(stat = "identity", width = 1, color = "black") +
+  coord_polar("y", start = 0) +
+  labs(title = "Artikel nach Kategorie", fill = "Kategorie") +
+  theme_linedraw() +
+  theme(legend.position = "right") +
+  geom_text(aes(label = ifelse(Count > 0, Count, "")), position = position_stack(vjust = 0.5))
+
+ggsave("kuchen_category_count.png", width = 7, height = 5)
+```
+
+## Untersuchen, `wann Artikel publiziert` werden
+
+```{r}
+library(scales)
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(quantreg)
+library(stringr)
+
+jahresverlauf_artikel <- daily_article_counts |> 
+  rename(Jahr = year,
+         Monat = month,
+         Tag = day) |> 
+  select(-date)
+
+
+polyplot <- jahresverlauf_artikel |> 
+  mutate(date = str_c(Jahr, Monat, Tag, sep = "-") |> 
+           ymd() |> 
+           floor_date(unit = "month") |> 
+           as.POSIXct()) |> 
+  group_by(date) |> 
+  summarize(n = sum(Artikelanzahl))
+
+polyplot |> 
+  ggplot() +
+  geom_line(aes(date, n), color = "darkgreen") +  labs(title = "Publikationsdatum der Artikel im gesamten Korpus",
+       x = "Datum",
+       y = "Anzahl Artikel") +
+  theme_linedraw() +
+  scale_x_datetime(labels = date_format("%b %y"), date_breaks = "4 months") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.5))
+
+
+ggsave("zeitverlauf.p.artikel.png", width = 14, height = 4)
+```
+
+## Genauere `Untersuchung des Jahres 2021 nach Token und Veröffentlichungsdatum`
+
+```{r nur 2021}
+polyplot21 <- jahresverlauf_artikel |> 
+  mutate(date = str_c(Jahr, Monat, Tag, sep = "-") |> 
+           ymd() |> 
+           floor_date(unit = "day") |> 
+           as.POSIXct()) |> 
+  group_by(date) |> 
+  summarize(n = sum(Artikelanzahl)) |> 
+  filter(year(date) == 2021) |> 
+  filter(between(month(date), 3, 9))
+
+polyplot21 |> 
+  ggplot() +
+  geom_line(aes(date, n), color = "darkgreen") +
+  theme_linedraw() +
+  scale_x_datetime(labels = date_format("%b %y"), date_breaks = "1 month") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 0.5, vjust = 0.5))
+
+ggsave("gaza21.png", width = 7, height = 4)
+
+
+token_gaza21 <- tbl_tidy |> 
+  group_by(token) |> 
+  filter(year == "2021") |> 
+  filter(month %in% c("05", "06")) |> 
+  filter(!token %in% c("israel", "arab", "palastinens", "staatsgrund", "jud", "judisch", "staat", "palastina", "land")) |>
+  count(token, sort = TRUE) |> 
+  slice_head(n = 50)
+
+write_csv(token_gaza21, "token_gaza21.csv")
+
+token_gaza21_top50 <- token_gaza21 %>%
+  slice_max(n, n = 50)
+
+wordcloud21png <- wordcloud(token_gaza21$token, freq = token_gaza21$n, scale=c(2,0.1), min.freq = 1, colors=brewer.pal(8, "Dark2"))
+
+ggsave(wordcloud21png, "wordcloud21.png")
+
+```
+
+## Untersuchung der `Token im Sommer 2021 + Visualisierung`
+
+```{r article april, mai, juni, juli}
+peak21 <- tbl_cleaned |> 
+  filter(year == "2021") |> 
+  filter(month %in% c("04", "05", "06", "07"))
+
+peak21_tidy <- tbl_tidy |> 
+  filter(year == "2021") |> 
+  filter(month %in% c("04", "05", "06", "07"))
+
+wordcloud21 <- peak21_tidy |> 
+  filter(!token %in% c("israel", "arab", "palastinens", "staatsgrund", "jud", "judisch", "staat", "palastina", "land")) |>
+  count(token, sort = TRUE) |> 
+  filter(n >= 20)
+
+write_csv(wordcloud21, "sommer21.csv")
+
+wordcloud21png <- wordcloud(wordcloud21$token, freq = wordcloud21$n, scale=c(2,0.1), min.freq = 1, colors=brewer.pal(8, "Dark2"))
+
+ggsave(wordcloud21png, filename = "wordcloud21.png")
+```
+
+
+## Untersuchung der `Publikationen pro Zeitung`
+
+```{r Schauen welche Zeitungen wieviel publiziert haben}
+all_outlet_counts <- tbl_cleaned |> 
+  group_by(outlet) |> 
+  summarize(Artikelanzahl = n()) %>%
+  arrange(desc(Artikelanzahl)) %>%
+  slice_head(n = 10) %>%
+  mutate(full_name = case_when(
+    outlet == "Z" ~ "Die Zeit",
+    outlet == "U" ~ "Süddeutsche Zeitung",
+    outlet == "W" ~ "welt",
+    outlet == "T" ~ "taz, die tageszeitung",
+    outlet == "DPA" ~ "Deutsche Presseagentur",
+    outlet == "R" ~ "Frankfurter Rundschau",
+    outlet == "TSP" ~ "Tagesspiegel",
+    outlet == "JUE" ~ "Jüdische Allgemeine",
+    outlet == "SOL" ~ "Spiegel Online",
+    outlet == "WEO" ~ "welt online",
+    TRUE ~ as.character(outlet)
+  )) %>%
+mutate(full_name = factor(full_name, levels = rev(unique(full_name))))
+```
+
+```{r}
+mapping_table <- data.frame(Kürzel = c("Z", "U", "W", "T", "DPA", "R", "TSP", "JUE", "SOL", "WEO", "KSA", "L", "BDZ", "RHP", "MPO", "RHZ", "AAN", "S", "F", "HAA", "NUN", "RGA", "RPO", "FNP", "WAS", "M", "DEC", "SZE", "MZE", "B"),
+                            
+                            Zeitungsnamen = c("Die Zeit", "Süddeutsche Zeitung", "Die Welt", "taz, die tageszeitung", "Deutsche Presseagentur", "Frankfurter Rundschau", "Tagesspiegel", "Jüdische Allgemeine", "Spiegel Online", "Welt Online", "Kölner Stadt-Anzeiger", "Berliner Morgenpost", "Badische Zeitung", "Die Rheinpfalz", "Main-Post", "Rhein-Zeitung", "Aachener Nachrichten", "Spiegel", "Frankfurter Allgemeine", "Hamburger Abendblatt", "Nürnberger Nachrichten", "Reutlinger General-Anzeiger", "Rheinische Post", "Frankfurter Neue Presse", "Welt am Sonntag", "Mannheimer Morgen", "Darmstädter Echo", "Sächsische Zeitung", "Mitteldeutsche Zeitung", "Berliner Zeitung"))
+```
+
+```{r Publikationen pro Zeitung}
+n_newspaper <- tbl_cleaned  |> 
+  group_by(outlet)  |>
+  rename(Zeitung = outlet) |> 
+  summarize(Publikationsjahre = paste(range(year), collapse = "-"), n = n()) |> 
+  arrange(desc(n)) |> 
+  slice_max(n >= 50) |> 
+  left_join(mapping_table, by = c("Zeitung" = "Kürzel")) |> 
+  select(Zeitungsnamen, everything()) |>
+  select(-Zeitung) |> 
+  rename(Zeitung = Zeitungsnamen)
+
+write.csv(n_newspaper, file = "n_newspaper.csv")
+
+#Character-Länge
+average_length_per_outlet <- tbl_cleaned |> 
+  group_by(outlet) |> 
+  summarize(avg_length = mean(nchar(text)))
+
+#Token-Länge
+avg_tokens_per_outlet <- tbl_tidyy %>%
+  group_by(outlet, id) %>%
+  summarize(avg_tokens = mean(n())) %>%
+  group_by(outlet) %>%
+  summarize(avg_tokens = mean(avg_tokens))
+
+  
+
+#monatlich
+n_newspaper_monthly <- monthly  |> 
+  group_by(outlet)  |> 
+  rename(Zeitung = outlet) |> 
+  summarize(Publikationsjahre = paste(range(year), collapse = "-"), n = n()) |> 
+  arrange(desc(n)) |> 
+  slice_max(n >= 50) |> 
+  left_join(mapping_table, by = c("Zeitung" = "Kürzel")) |> 
+  select(Zeitungsnamen, everything()) |>
+  select(-Zeitung) |> 
+  rename(Zeitung = Zeitungsnamen)
+
+write.csv(n_newspaper, file = "n_newspaper_monthly.csv")
+
+#Charakter-Länge             
+average_length_per_outlet_monthly <- monthly %>%
+  group_by(outlet) %>%
+  summarize(avg_length = mean(nchar(text)))
+
+#Token-Länge
+avg_tokens_per_outlet_monthly <- tbl_tidy %>%
+  group_by(outlet, id) %>%
+  summarize(avg_tokens = mean(n())) %>%
+  group_by(outlet) %>%
+  summarize(avg_tokens = mean(avg_tokens))
+```
+
+
+
+
+## Untersuchung der `Länge der Artikel`
+```{r Länge der Strings in character und token herausfinden}
+library(stringr)
+library(dplyr)
+
+length_strings <- tbl_tidyy |> 
+  group_by(id) |> 
+  summarize(anzahl_beobachtungen_pro_id = n()) |> 
+  summarise(durchschnitt = mean(anzahl_beobachtungen_pro_id)) |> 
+  mutate(länge_character = mean(nchar(tbl_cleaned$text))) |> 
+  round(digits = 3)
+
+length_strings_m <- tbl_tidy |> 
+  group_by(id) |> 
+  summarize(anzahl_beobachtungen_pro_id = n()) |> 
+  summarise(durchschnitt = mean(anzahl_beobachtungen_pro_id)) |> 
+  mutate(länge_character = mean(nchar(tbl_cleaned$text))) |> 
+  round(digits = 3)
+
+#write.csv(length_strings, file = "length_strings.csv")
+```
+
+
+```{r Untersuchung Artikel 05/1999}
+artikel05.99 <- tbl_cleaned |> 
+  filter(year == "1999") |> 
+  filter(month == "05")
+```
+
+

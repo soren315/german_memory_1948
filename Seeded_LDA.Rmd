@@ -1,0 +1,279 @@
+---
+title: "structural topic modelling"
+author: "Abu Bakr"
+date: "2024-01-02"
+output: html_document
+---
+
+```{r}
+needs(quanteda, seededlda, tidyr, dplyr, tidyverse, tm, tidytext, SnowballC, cowplot)
+```
+
+```{r}
+tbl_dfm <- tbl_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(year, token, n)
+```
+
+Also, we needs to define our topics in a dictionary.
+
+```{r}
+dict <- dictionary(
+  list(
+    nakba = c("nakba", "heimatverlust", "trauma", "entwurzelung", "vertreib", "flucht", "palastina", "palastinens"),
+    
+    staatsgruendung = c("israel", "israeli", "sicherheitsgaranti", "unabhangigkeitskrieg", "unabhangigkeitserklar", "unabhangigkeitsdeklaration", "lebensversich", "staatsgrund", "ben", "gurion", "israelis")
+  )
+)
+
+```
+
+Im Folgenden wird das Modell mit `k = 15` trainiert, daher wird `residual = 13` eingestelltum 13 verbleibende und 5 vordefinierte Topics zu erhalten.
+
+```{r}
+lda_res <- textmodel_seededlda(tbl_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+```
+
+
+```{r}
+topic_words <- lda_res |> 
+  pluck("phi") |> 
+  t() |> 
+  as_tibble(rownames = NA) |> 
+  rownames_to_column("term") |> 
+  pivot_longer(-term) |> 
+  group_by(name) |> 
+  slice_max(value, n = 10) 
+```
+
+Hier die Stärke der Topics nach den einzelnen Dokumenten, in diesem Fall Jahre.
+```{r}
+docs <- rownames(tbl_dfm) |> 
+  enframe(name = NULL, value = "year") |> 
+  bind_cols(lda_res$theta |> as_tibble()) 
+
+strongest_belongings <- docs |> 
+  pivot_longer(-year, names_to = "topic") |> 
+  group_by(year) |> 
+  slice_max(value, n = 5)
+
+```
+
+
+```{r area plot}
+all_stm <- docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+  mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) +  labs(title = "Seeded LDA gesamter Korpus (pro Jahr)",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+
+ggsave(filename = "area_gesamt.png", width = 7, height = 3)
+```
+
+
+#####monatlich######
+
+```{r}
+monthly.sdla <- monthly
+monthly.sdla$date <- paste(monthly.sdla$year, monthly.sdla$month, sep = "")
+
+monthly.sdla <- monthly.sdla |> 
+  select(-month) |> 
+  select(-year)
+
+monthly.sdla_tidy <- monthly.sdla |> 
+  mutate(text = text |> 
+           str_replace_all("[,.]", " ")) |> 
+  unnest_tokens(output = token, input = text) |> 
+   filter(!str_detect(token, "[:digit:]")) |> 
+  anti_join(get_stopwords(language = "de"), by = c("token" = "word")) |> 
+  anti_join(get_stopwords(language = "de", source = "stopwords-iso"), by = c("token" = "word")) |> 
+  anti_join(get_stopwords(language = "de", source = "marimo"), by = c("token" = "word")) |> 
+  mutate(token = wordStem(token, language = "de")) |> 
+  filter(!(token %in% c("quot", "genios:styl", "dpa", "xyxhtmlyxy", "xyxhtmeyxy")))
+
+monthly.sdla_dfm <- monthly.sdla_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(date, token, n)
+
+monthly.sdla_lda_res <- textmodel_seededlda(monthly.sdla_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+
+monthly.sdla_docs <- rownames(monthly.sdla_dfm) |> 
+  enframe(name = NULL, value = "date") |> 
+  bind_cols(monthly.sdla_lda_res$theta |> as_tibble()) 
+
+monthly_stm <- monthly.sdla_docs |> 
+pivot_longer(cols = -date, names_to = "type", values_to = "gamma") |> 
+  mutate(date = as.double(date)) |> 
+  ggplot() +
+  geom_area(aes(x = date, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) +  labs(title = "Seeded LDA gesamter Korpus (pro Monat)",
+       x = "Zeit",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+
+ggsave(filename = "area_gesamt_monthly.png", width = 7, height = 3)
+```
+
+```{r}
+plot_grid(monthly_stm, all_stm, labels = "AUTO")
+
+ggsave("area_all_monthly.png", width = 10, height = 2)
+```
+
+
+#####nur der Mai#####
+```{r}
+
+mai_tidy <- tbl_tidy |> 
+  filter(month == "05")
+
+
+mai_dfm <- mai_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(year, token, n)
+
+mai_lda_res <- textmodel_seededlda(mai_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+
+mai_topic_words <- mai_lda_res |> 
+  pluck("phi") |> 
+  t() |> 
+  as_tibble(rownames = NA) |> 
+  rownames_to_column("term") |> 
+  pivot_longer(-term) |> 
+  group_by(name) |> 
+  slice_max(value, n = 10) 
+
+mai_docs <- rownames(mai_dfm) |> 
+  enframe(name = NULL, value = "year") |> 
+  bind_cols(mai_lda_res$theta |> as_tibble()) 
+
+mai_strongest_belongings <- mai_docs |> 
+  pivot_longer(-year, names_to = "topic") |> 
+  group_by(year) |> 
+  slice_max(value, n = 5)
+
+mai_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+  mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) +  labs(title = "Seeded LDA Mai 1998 - 2022",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("slda_mai.png", width = 7, height = 3)
+```
+
+Nur `Jubiläen`
+```{r 1998, 2008, 2018}
+
+jubilees_tidy <- tbl_tidy |> 
+  filter(year %in% c("1998", "2008", "2018"))
+
+
+jubilees_dfm <- jubilees_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(year, token, n)
+
+jubilees_lda_res <- textmodel_seededlda(jubilees_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+
+jubilees_topic_words <- jubilees_lda_res |> 
+  pluck("phi") |> 
+  t() |> 
+  as_tibble(rownames = NA) |> 
+  rownames_to_column("term") |> 
+  pivot_longer(-term) |> 
+  group_by(name) |> 
+  slice_max(value, n = 10) 
+
+jubilees_docs <- rownames(jubilees_dfm) |> 
+  enframe(name = NULL, value = "year") |> 
+  bind_cols(jubilees_lda_res$theta |> as_tibble()) 
+
+jubilees_strongest_belongings <- jubilees_docs |> 
+  pivot_longer(-year, names_to = "topic") |> 
+  group_by(year) |> 
+  slice_max(value, n = 5)
+
+jubilees_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+  mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) +  labs(title = "Seeded LDA 1998, 2008 und 2018",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("slda_jubilees.png", width = 7, height = 3)
+```
+
+
+
+
+```{r}
+mai_plot <- mai_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+  mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) +  labs(title = "Seeded LDA Mai 1998 - 2022",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+jubilees_plot <- jubilees_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+  mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) +  labs(title = "Seeded LDA 1998, 2008 und 2018",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+plot_grid(mai_plot, jubilees_plot, labels = "AUTO")
+
+ggsave("plotmayjubilee.png", width = 10, height = 2)
+```
+
+
+

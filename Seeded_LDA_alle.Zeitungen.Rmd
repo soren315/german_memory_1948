@@ -1,0 +1,578 @@
+---
+title: "seeded_lda pro Jahr pro Zeitung"
+author: "Abu Bakr"
+date: "2024-01-29"
+output: html_document
+---
+```{r}
+needs(quanteda, seededlda, tidyr, dplyr, tidyverse, tm, tidytext, SnowballC, cowplot)
+```
+
+```{r Seed-Wörter laden}
+dict <- dictionary(
+  list(
+    nakba = c("nakba", "heimatverlust", "trauma", "entwurzelung", "palastina", "palastinens"),
+    
+    staatsgruendung = c("israel", "israeli", "israelis", "sicherheitsgaranti", "unabhangigkeitskrieg", "unabhangigkeitserklar", "unabhangigkeitsdeklaration", "lebensversich", "staatsgrund", "ben", "gurion")
+  )
+)
+```
+
+
+```{r JAG}
+#DF für JAG erstellen
+jag_tidy <- tbl_tidy |> 
+  filter(outlet == "JUE")
+
+#DFM erstellen
+jag_dfm <- jag_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(year, token, n)
+
+#Seeded LDA
+jag_lda_res <- textmodel_seededlda(jag_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+
+#Übersicht in tabellarischer Form
+jag_docs <- rownames(jag_dfm) |> 
+  enframe(name = NULL, value = "year") |> 
+  bind_cols(jag_lda_res$theta |> as_tibble()) 
+
+jag_strongest_belongings <- jag_docs |> 
+  pivot_longer(-year, names_to = "topic") |> 
+  group_by(year) |> 
+  slice_max(value, n = 5)
+
+#area-plot
+jag_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+    mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) + 
+  labs(title = "Seeded LDA \"Jüdische Allgemeine\" 2010 - 2022",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("area_plot.yearly_jag.png", width = 7, height = 3)
+```
+
+
+
+
+```{r FR}
+fr_tidy <- tbl_tidy |> 
+  filter(outlet == "R")
+
+#DFM erstellen
+fr_dfm <- fr_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(year, token, n)
+
+#Seeded LDA
+fr_lda_res <- textmodel_seededlda(fr_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+
+#Übersicht in tabellarischer Form
+fr_docs <- rownames(fr_dfm) |> 
+  enframe(name = NULL, value = "year") |> 
+  bind_cols(fr_lda_res$theta |> as_tibble()) 
+
+fr_strongest_belongings <- fr_docs |> 
+  pivot_longer(-year, names_to = "topic") |> 
+  group_by(year) |> 
+  slice_max(value, n = 5)
+
+#area-plot
+fr_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+    mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) + 
+  labs(title = "Seeded LDA \"Frankfurter Rundschau\" 1998 - 2022",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("area_plot.yearly_fr.png", width = 7, height = 3)
+```
+
+
+```{r Spiegel}
+spiegel_tidy <- tbl_tidy |> 
+  filter(outlet %in% c("S", "SOL"))
+
+#DFM erstellen
+spiegel_dfm <- spiegel_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(year, token, n)
+
+#Seeded LDA
+spiegel_lda_res <- textmodel_seededlda(spiegel_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+
+#Übersicht in tabellarischer Form
+spiegel_docs <- rownames(spiegel_dfm) |> 
+  enframe(name = NULL, value = "year") |> 
+  bind_cols(spiegel_lda_res$theta |> as_tibble()) 
+
+spiegel_strongest_belongings <- spiegel_docs |> 
+  pivot_longer(-year, names_to = "topic") |> 
+  group_by(year) |> 
+  slice_max(value, n = 5)
+
+#area-plot
+spiegel_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+    mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) + 
+  labs(title = "Seeded LDA \"Spiegel\" 1998 - 2022",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("area_plot.yearly_spiegel.png", width = 7, height = 3)
+```
+
+
+```{r taz}
+taz_tidy <- tbl_tidy |> 
+  filter(outlet == "T")
+
+#DFM erstellen
+taz_dfm <- taz_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(year, token, n)
+
+#Seeded LDA
+taz_lda_res <- textmodel_seededlda(taz_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+
+#Übersicht in tabellarischer Form
+taz_docs <- rownames(taz_dfm) |> 
+  enframe(name = NULL, value = "year") |> 
+  bind_cols(taz_lda_res$theta |> as_tibble()) 
+
+taz_strongest_belongings <- taz_docs |> 
+  pivot_longer(-year, names_to = "topic") |> 
+  group_by(year) |> 
+  slice_max(value, n = 5)
+
+#area-plot
+area_taz <- taz_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+    mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) + 
+  labs(title = "Seeded LDA \"taz, die tageszeitung\" 1998 - 2022",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("area_plot.yearly_taz.png", width = 7, height = 3)
+```
+
+
+
+```{r Zeit}
+zeit_tidy <- tbl_tidy |> 
+  filter(outlet == "Z")
+
+#DFM erstellen
+zeit_dfm <- zeit_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(year, token, n)
+
+#Seeded LDA
+zeit_lda_res <- textmodel_seededlda(zeit_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+
+#Übersicht in tabellarischer Form
+zeit_docs <- rownames(zeit_dfm) |> 
+  enframe(name = NULL, value = "year") |> 
+  bind_cols(zeit_lda_res$theta |> as_tibble()) 
+
+zeit_strongest_belongings <- zeit_docs |> 
+  pivot_longer(-year, names_to = "topic") |> 
+  group_by(year) |> 
+  slice_max(value, n = 5)
+
+#area-plot
+zeit_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+    mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) + 
+  labs(title = "Seeded LDA \"DIE ZEIT\" 1998 - 2022",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("area_plot.yearly_zeit.png", width = 7, height = 3)
+```
+
+
+```{r Süddeutsche}
+sueddeutsche_tidy <- tbl_tidy |> 
+  filter(outlet == "U")
+
+#DFM erstellen
+sueddeutsche_dfm <- sueddeutsche_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(year, token, n)
+
+#Seeded LDA
+sueddeutsche_lda_res <- textmodel_seededlda(sueddeutsche_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+
+#Übersicht in tabellarischer Form
+sueddeutsche_docs <- rownames(sueddeutsche_dfm) |> 
+  enframe(name = NULL, value = "year") |> 
+  bind_cols(sueddeutsche_lda_res$theta |> as_tibble()) 
+
+sueddeutsche_strongest_belongings <- sueddeutsche_docs |> 
+  pivot_longer(-year, names_to = "topic") |> 
+  group_by(year) |> 
+  slice_max(value, n = 5)
+
+#area-plot
+sueddeutsche_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+    mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) + 
+  labs(title = "Seeded LDA \"Süddeutsche Zeitung\" 1998 - 2022",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("area_plot.yearly_sueddeutsche.png", width = 7, height = 3)
+```
+
+
+
+
+```{r welt}
+welt_tidy <- tbl_tidy |> 
+  filter(outlet %in% c("W", "WEO", "WAS"))
+
+#DFM erstellen
+welt_dfm <- welt_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(year, token, n)
+
+#Seeded LDA
+welt_lda_res <- textmodel_seededlda(welt_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+
+#Übersicht in tabellarischer Form
+welt_docs <- rownames(welt_dfm) |> 
+  enframe(name = NULL, value = "year") |> 
+  bind_cols(welt_lda_res$theta |> as_tibble()) 
+
+welt_strongest_belongings <- welt_docs |> 
+  pivot_longer(-year, names_to = "topic") |> 
+  group_by(year) |> 
+  slice_max(value, n = 5)
+
+#area-plot
+area_welt <- welt_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+    mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) + 
+  labs(title = "Seeded LDA \"DIE WELT\" 1998 - 2022",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("area_plot.yearly_welt.png", width = 7, height = 3)
+```
+
+
+```{r Berliner Zeitung}
+b_tidy <- tbl_tidy |> 
+  filter(outlet == "B")
+
+#DFM erstellen
+b_dfm <- b_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(year, token, n)
+
+#Seeded LDA
+b_lda_res <- textmodel_seededlda(b_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+
+#Übersicht in tabellarischer Form
+b_docs <- rownames(b_dfm) |> 
+  enframe(name = NULL, value = "year") |> 
+  bind_cols(b_lda_res$theta |> as_tibble()) 
+
+b_strongest_belongings <- b_docs |> 
+  pivot_longer(-year, names_to = "topic") |> 
+  group_by(year) |> 
+  slice_max(value, n = 5)
+
+#area-plot
+b_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+    mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) + 
+  labs(title = "Seeded LDA \"Berliner Zeitung\" 1998 - 2022",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("area_plot.yearly_bz.png", width = 7, height = 3)
+```
+
+
+```{r Tagesspiegel}
+tsp_tidy <- tbl_tidy |> 
+  filter(outlet == "TSP")
+
+#DFM erstellen
+tsp_dfm <- tsp_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(year, token, n)
+
+#Seeded LDA
+tsp_lda_res <- textmodel_seededlda(tsp_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+
+#Übersicht in tabellarischer Form
+tsp_docs <- rownames(tsp_dfm) |> 
+  enframe(name = NULL, value = "year") |> 
+  bind_cols(tsp_lda_res$theta |> as_tibble()) 
+
+tsp_strongest_belongings <- tsp_docs |> 
+  pivot_longer(-year, names_to = "topic") |> 
+  group_by(year) |> 
+  slice_max(value, n = 5)
+
+#area-plot
+tsp_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+    mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) + 
+  labs(title = "Seeded LDA \"Tagespiegel\" 1998 - 2022",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("area_plot.yearly_tsp.png", width = 7, height = 3)
+```
+
+
+```{r Kölner Stadtanzeiger}
+ksa_tidy <- tbl_tidy |> 
+  filter(outlet == "KSA")
+
+#DFM erstellen
+ksa_dfm <- ksa_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(year, token, n)
+
+#Seeded LDA
+ksa_lda_res <- textmodel_seededlda(ksa_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+
+#Übersicht in tabellarischer Form
+ksa_docs <- rownames(ksa_dfm) |> 
+  enframe(name = NULL, value = "year") |> 
+  bind_cols(ksa_lda_res$theta |> as_tibble()) 
+
+ksa_strongest_belongings <- ksa_docs |> 
+  pivot_longer(-year, names_to = "topic") |> 
+  group_by(year) |> 
+  slice_max(value, n = 5)
+
+#area-plot
+ksa_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+    mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) + 
+  labs(title = "Seeded LDA \"Kölner Stadt-Anzeiger\" 1998 - 2022",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("area_plot.yearly_ksa.png", width = 7, height = 3)
+```
+
+
+```{r überregional}
+ueberregional_tidy <- tbl_tidy |> 
+  filter(regional == 0)
+
+#DFM erstellen
+ueberregional_dfm <- ueberregional_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(year, token, n)
+
+#Seeded LDA
+ueberregional_lda_res <- textmodel_seededlda(ueberregional_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+
+#Übersicht in tabellarischer Form
+ueberregional_docs <- rownames(ueberregional_dfm) |> 
+  enframe(name = NULL, value = "year") |> 
+  bind_cols(ueberregional_lda_res$theta |> as_tibble()) 
+
+ueberregional_strongest_belongings <- ueberregional_docs |> 
+  pivot_longer(-year, names_to = "topic") |> 
+  group_by(year) |> 
+  slice_max(value, n = 5)
+
+#area-plot
+area_uregio <- ueberregional_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+    mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) + 
+  labs(title = "Seeded LDA überregionale Zeitungen 1998 - 2022",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("area_plot.yearly_ueberregional.png", width = 7, height = 3)
+```
+
+
+```{r regional}
+regional_tidy <- tbl_tidy |> 
+  filter(regional == 1)
+
+#DFM erstellen
+regional_dfm <- regional_tidy |> 
+  add_count(token) |> 
+  group_by(token) |> 
+  cast_dfm(year, token, n)
+
+#Seeded LDA
+regional_lda_res <- textmodel_seededlda(regional_dfm, 
+                               dict, 
+                               residual = 13, 
+                               batch_size = 0.01, 
+                               auto_iter = TRUE,
+                               verbose = TRUE)
+
+#Übersicht in tabellarischer Form
+regional_docs <- rownames(regional_dfm) |> 
+  enframe(name = NULL, value = "year") |> 
+  bind_cols(regional_lda_res$theta |> as_tibble()) 
+
+regional_strongest_belongings <- regional_docs |> 
+  pivot_longer(-year, names_to = "topic") |> 
+  group_by(year) |> 
+  slice_max(value, n = 5)
+
+#area-plot
+area_regio <- regional_docs |> 
+pivot_longer(cols = -year, names_to = "type", values_to = "gamma") |> 
+    mutate(year = as.double(year)) |> 
+  ggplot() +
+  geom_area(aes(x = year, y = gamma, fill = type), position = "stack") + 
+  scale_fill_manual(values = c("staatsgruendung" = "#66CCFF", "nakba" = "#006600")) + 
+  labs(title = "Seeded LDA regionale Zeitungen 1998 - 2022",
+       x = "Jahr",
+       y = "Salienz") +
+  theme_linedraw() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1))
+
+ggsave("area_plot.yearly_regional.png", width = 7, height = 3)
+```
+
+```{r gemeinsame plots speichern}
+plot_grid(area_welt, area_taz, labels = "AUTO")
+
+ggsave("welt_taz_area.png", width = 10, height = 2)
+
+plot_grid(area_uregio, area_regio, labels = "AUTO")
+
+ggsave("regio.uregio_area.png", width = 10, height = 2)
+
+```
+
+

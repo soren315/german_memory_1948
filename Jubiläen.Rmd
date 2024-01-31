@@ -1,0 +1,169 @@
+---
+title: "jubilees"
+author: "Abu Bakr"
+date: "2024-01-28"
+output: html_document
+---
+```{r}
+needs(topicmodels, tm, servr, stringi, broom, dplyr, tidytext, tidyr, tidyverse, SnowballC, ldatuning, LDAvis, lda)
+```
+
+
+```{r Erstellen eines Korpus für die Jubiläums-Jahrgänge mit Bereinigung sehr häufiger Wörter}
+jubilees <- tbl_tidy |> 
+  filter(year %in% c("1998", "2008", "2018"))
+
+jubilees |> 
+  count(token, sort = TRUE)
+jubilees_sw <-  c("israel", "palastinens", "staat", "judisch", "jud", "jerusal", "staatsgrund", "land", "aviv")
+jubilees <- jubilees |> 
+  filter(!token %in% jubilees_sw)
+```
+
+
+```{r Erstellen einer DTM}
+jubilees_dtm <- jubilees |> 
+  filter(str_length(token) > 1) |> 
+  count(year, token) |> 
+  group_by(token) |> 
+  filter(n() < 50) |> 
+  cast_dtm(document = year, term = token, value = n)
+```
+
+
+```{r Durchführung provisorische LDA}
+needs(topicmodels, broom)
+
+jubilees_lda_k10 <- LDA(jubilees_dtm, k = 10, control = list(seed = 123))
+
+jubilees_lda_k10_tidy <- tidy(jubilees_lda_k10)
+```
+
+
+```{r Untersuchung Top Terms}
+jubilees_top_terms_k10 <- jubilees_lda_k10_tidy |>
+  group_by(topic) |>
+  slice_max(beta, n = 5, with_ties = FALSE) |>
+  ungroup() |>
+  arrange(topic, -beta)
+
+jubilees_top_terms_k10 |>
+  mutate(topic = factor(topic),
+         term = reorder_within(term, beta, topic)) |>
+  ggplot(aes(term, beta, fill = topic)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  scale_x_reordered() +
+  facet_wrap(~topic, scales = "free", ncol = 2) +
+  coord_flip()
+```
+
+```{r Ermitteln der optimalen Anzahl an Themen (k=5)}
+jubilees_determine_k <- FindTopicsNumber(
+  jubilees_dtm,
+  topics = seq(from = 2, to = 30, by = 3),
+  metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  control = list(seed = 77),
+  mc.cores = 16L,
+  verbose = TRUE
+)
+
+FindTopicsNumber_plot(jubilees_determine_k)
+ggsave(file = "jubilees_determine_k_stm.png", width = 8, height = 5)
+
+```
+
+
+```{r Vorbereitung und Ausführung der LDAvis für den Korpus der Jubiläumsjahre mit k=5}
+jubilees_json_lda <- prep_lda_output(jubilees_dtm, jubilees_lda_k5)
+
+serVis(jubilees_json_lda, out.dir = 'vis', open.browser = TRUE)
+
+servr::daemon_stop(1)
+```
+
+
+
+
+
+
+## Ab hier wird eine `LDA mit LDAvis` für den Monat Mai (von 1998-2022) berechnet
+
+```{r Erstellen des Korpus Mai 1998-2022}
+mai <- tbl_tidy |> 
+  filter(month == "05")
+
+mai_dtm <- mai |> 
+  filter(str_length(token) > 1) |> 
+  count(year, token) |> 
+  group_by(token) |> 
+  cast_dtm(document = year, term = token, value = n)
+```
+
+
+```{r Durchführung einer provisorischen LDA mit k=10}
+mai_lda_k10 <- LDA(mai_dtm, k = 10, control = list(seed = 123))
+
+mai_lda_k10_tidy <- tidy(mai_lda_k10)
+```
+
+
+```{r Darstellung der Top Terms}
+mai_top_terms_k10 <- mai_lda_k10_tidy |>
+  group_by(topic) |>
+  slice_max(beta, n = 5, with_ties = FALSE) |>
+  ungroup() |>
+  arrange(topic, -beta)
+
+mai_top_terms_k10 |>
+  mutate(topic = factor(topic),
+         term = reorder_within(term, beta, topic)) |>
+  ggplot(aes(term, beta, fill = topic)) +
+  geom_bar(stat = "identity", show.legend = FALSE) +
+  scale_x_reordered() +
+  facet_wrap(~topic, scales = "free", ncol = 2) +
+  coord_flip()
+```
+
+
+```{r Erfassen der optimalen Anzahl an Themen}
+mai_determine_k <- FindTopicsNumber(
+  mai_dtm,
+  topics = seq(from = 2, to = 30, by = 3),
+  metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  control = list(seed = 77),
+  mc.cores = 16L,
+  verbose = TRUE
+)
+
+FindTopicsNumber_plot(mai_determine_k)
+ggsave(file = "mai_determine_k_stm.png", width = 8, height = 5)
+
+```
+
+
+```{r Vorbereiten der LDAvis mit k=8}
+mai_lda_k8 <- LDA(mai_dtm, k = 8, control = list(seed = 123))
+
+mai_lda_k8_tidy <- tidy(mai_lda_k8)
+
+mai_topic_list <- mai_lda_k8_tidy |> 
+  group_by(topic) |> 
+  group_split() |> 
+  map_dfc(~.x |> 
+            slice_max(beta, n = 20, with_ties = FALSE) |>
+            arrange(-beta) |> 
+            select(term)) |> 
+  set_names(str_c("topic", 1:8, sep = "_"))
+
+
+
+mai_json_lda <- prep_lda_output(mai_dtm, mai_lda_k8)
+```
+
+```{r LDAvis für Mai (1998-2022) mit k=8}
+serVis(mai_json_lda, out.dir = 'vis', open.browser = TRUE)
+
+servr::daemon_stop(1)
+```
