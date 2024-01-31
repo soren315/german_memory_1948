@@ -11,7 +11,7 @@ Die Daten für diese Forschung sind unter data_w_font1, ..., data_w_font_4 hinte
 
 
 Analyse:
-Die LDA wurde mit dem Code in "LDA.Rmd" durchgeführt.
+Die LDA wurde mit dem Code in "LDA.Rmd" durchgeführt, dort lässt sich auch die in der Arbeit erwähnte LDAvis finden.
 Die Seeded LDA wurde mit dem Code in "Seeded_LDA.Rmd" durchgeführt.
 Die Seeded LDA für die einzelnen Zeitungen wurde mit dem Code in "seeded_LDA_pro_Zeitung.Rmd" durchgeführt.
 Die Analyse zu den Jahrestagen wurde mit "Jubiläen.Rmd" durchgeführt.
