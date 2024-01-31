@@ -11,9 +11,10 @@ Die Daten für diese Forschung sind unter data_w_font1, ..., data_w_font_4 hinte
 
 
 Analyse:
-Das Topic Model wurde mit dem Code in "topicmodelling.Rmd" durchgeführt.
-Das Seeded Topic Model wurde mit dem Code in "seeded_topicmodel.Rmd" durchgeführt.
-Das Seeded Topic Model für die einzelnen Zeitungen wurde mit dem Code in "seeded_tm_all_newspaper.Rmd" durchgeführt.
+Die LDA wurde mit dem Code in "LDA.Rmd" durchgeführt.
+Die Seeded LDA wurde mit dem Code in "Seeded_LDA.Rmd" durchgeführt.
+Die Seeded LDA für die einzelnen Zeitungen wurde mit dem Code in "seeded_LDA_pro_Zeitung.Rmd" durchgeführt.
+Die Analyse zu den Jahrestagen wurde mit "Jubiläen.Rmd" durchgeführt.
 
 Visualisierung:
 Die Visualisierung deskriptiver Daten wurde mit dem Code in "frequencies.Rmd" durchgeführt.
